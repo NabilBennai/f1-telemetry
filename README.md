@@ -94,6 +94,18 @@ Le port MySQL par défaut est `3307` (et non `3306`) pour éviter les conflits a
   - choisir les métriques à tracer (vitesse, régime moteur, accélérateur, frein, direction, rapport, température moteur, températures pneus) — un graphique par métrique, les tours sélectionnés superposés sur un axe "temps dans le tour" ;
   - basculer en vue tableau (min / moyenne / max par tour et par métrique).
 
+## Coach IA
+
+Le panneau **Coach IA** (page Historique) compare un tour choisi à un tour de référence (le meilleur tour de la session par défaut) : le bridge détecte les virages par minima locaux de vitesse, calcule pour chacun le point de freinage, la vitesse d'apex, le délai de réaccélération et l'écart avec le tour de référence, puis envoie ce résumé compact (jamais la télémétrie brute) à une API LLM compatible OpenAI pour obtenir un commentaire de coaching en français.
+
+Configuration dans `apps/bridge/.env` :
+
+| Variable       | Description                                                                                                                                           |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `LLM_BASE_URL` | URL de base de l'API (compatible `/chat/completions` façon OpenAI) — fonctionne avec OpenAI, OpenRouter, Groq, DeepSeek, Together, Ollama local, etc. |
+| `LLM_API_KEY`  | Clé API du fournisseur choisi                                                                                                                         |
+| `LLM_MODEL`    | Nom du modèle à utiliser                                                                                                                              |
+
 ## Déploiement du frontend sur Vercel
 
 Le `vercel.json` à la racine du repo pilote le build directement depuis la racine du monorepo (Root Directory Vercel = `.`) :

@@ -176,8 +176,8 @@ udpSocket.bind(UDP_PORT, "0.0.0.0", () => {
   console.log(`Écoute UDP F1 26 sur le port ${UDP_PORT}...`);
 });
 
-const wss = new WebSocketServer({ port: WS_PORT });
-console.log(`Serveur WebSocket sur ws://localhost:${WS_PORT}`);
+const wss = new WebSocketServer({ port: WS_PORT, host: "0.0.0.0" });
+console.log(`Serveur WebSocket sur ws://0.0.0.0:${WS_PORT} (accessible en LAN)`);
 
 wss.on("connection", (ws) => {
   console.log("Client React connecté.");
@@ -192,6 +192,6 @@ setInterval(() => {
 }, 66);
 
 const apiApp = createApiApp(pool);
-apiApp.listen(API_PORT, () => {
-  console.log(`API REST (sessions/télémétrie) sur http://localhost:${API_PORT}`);
+apiApp.listen(API_PORT, "0.0.0.0", () => {
+  console.log(`API REST (sessions/télémétrie) sur http://0.0.0.0:${API_PORT} (accessible en LAN)`);
 });

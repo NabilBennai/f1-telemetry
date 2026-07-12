@@ -8,7 +8,13 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { fetchLaps, fetchSessions, fetchTelemetry, renameSession } from "../lib/api";
+import {
+  fetchCoachComment,
+  fetchLaps,
+  fetchSessions,
+  fetchTelemetry,
+  renameSession,
+} from "../lib/api";
 import { colorForLap } from "../lib/palette";
 
 const COLORS = {
@@ -199,6 +205,92 @@ function SummaryTable({ rows, laps, metrics }) {
         </tbody>
       </table>
     </div>
+  );
+}
+
+function CoachPanel({ sessionId, laps }) {
+  const [lap, setLap] = useState("");
+  const [referenceLap, setReferenceLap] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState(null);
+
+  const runAnalysis = async () => {
+    if (!lap) return;
+    setLoading(true);
+    setError(null);
+    setResult(null);
+    try {
+      const data = await fetchCoachComment(sessionId, {
+        lap: Number(lap),
+        referenceLap: referenceLap ? Number(referenceLap) : undefined,
+      });
+      setResult(data);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Panel style={{ marginBottom: 16 }}>
+      <Label>Coach IA</Label>
+      <div
+        style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 10, flexWrap: "wrap" }}
+      >
+        <select value={lap} onChange={(e) => setLap(e.target.value)} style={inputStyle}>
+          <option value="">Tour à analyser...</option>
+          {laps.map((l) => (
+            <option key={l.lap} value={l.lap}>
+              Tour {l.lap}
+            </option>
+          ))}
+        </select>
+        <select
+          value={referenceLap}
+          onChange={(e) => setReferenceLap(e.target.value)}
+          style={inputStyle}
+        >
+          <option value="">Référence : meilleur tour (auto)</option>
+          {laps
+            .filter((l) => String(l.lap) !== lap)
+            .map((l) => (
+              <option key={l.lap} value={l.lap}>
+                Comparer au tour {l.lap}
+              </option>
+            ))}
+        </select>
+        <button type="button" onClick={runAnalysis} disabled={!lap || loading} style={buttonStyle}>
+          {loading ? "Analyse en cours..." : "Analyser avec l'IA"}
+        </button>
+      </div>
+
+      {error && <div style={{ color: "#FF3B3B", marginTop: 12, fontSize: 13 }}>{error}</div>}
+
+      {result && (
+        <div style={{ marginTop: 14 }}>
+          <div style={{ fontSize: 12, color: COLORS.muted, marginBottom: 8 }}>
+            Tour {result.lap} comparé au tour {result.referenceLap} — {result.corners.length}{" "}
+            virage(s) détecté(s)
+          </div>
+          <div
+            style={{
+              whiteSpace: "pre-wrap",
+              fontSize: 14,
+              lineHeight: 1.5,
+              color: COLORS.text,
+              background: COLORS.track,
+              border: `1px solid ${COLORS.panelBorder}`,
+              borderRadius: 6,
+              padding: "12px 14px",
+            }}
+          >
+            {result.comment}
+          </div>
+        </div>
+      )}
+    </Panel>
   );
 }
 
@@ -409,6 +501,8 @@ export default function SessionHistory() {
           </Panel>
 
           {error && <Panel style={{ marginBottom: 16, color: "#FF3B3B" }}>{error}</Panel>}
+
+          <CoachPanel sessionId={selectedSessionId} laps={laps} />
 
           {showTable ? (
             <Panel>

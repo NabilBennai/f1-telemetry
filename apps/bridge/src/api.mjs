@@ -1,5 +1,6 @@
 import cors from "cors";
 import express from "express";
+import { compareCorners, detectCorners, requestCoachComment } from "./coach.mjs";
 
 // Whitelist des métriques exposables via /telemetry?metrics=... (protège contre
 // l'injection SQL par nom de colonne, impossible à paramétrer avec des placeholders).
@@ -113,6 +114,73 @@ export function createApiApp(pool) {
       params,
     );
     res.json(rows);
+  });
+
+  app.post("/api/sessions/:id/coach", async (req, res) => {
+    const sessionId = req.params.id;
+    const lap = Number(req.body.lap);
+    if (!Number.isInteger(lap) || lap <= 0) {
+      return res.status(400).json({ error: "lap requis" });
+    }
+
+    try {
+      const [[session]] = await pool.query("SELECT name FROM sessions WHERE id = ?", [sessionId]);
+      if (!session) return res.status(404).json({ error: "session introuvable" });
+
+      let referenceLap = Number(req.body.referenceLap) || null;
+      if (!referenceLap) {
+        const [candidates] = await pool.query(
+          `SELECT lap, MIN(last_lap_ms) AS last_lap_ms
+           FROM telemetry_samples
+           WHERE session_id = ? AND lap > 0 AND lap != ? AND last_lap_ms > 0
+           GROUP BY lap
+           ORDER BY last_lap_ms ASC
+           LIMIT 1`,
+          [sessionId, lap],
+        );
+        if (candidates.length === 0) {
+          return res
+            .status(400)
+            .json({ error: "pas de tour de référence disponible pour comparer" });
+        }
+        referenceLap = candidates[0].lap;
+      }
+
+      const fetchLapRows = (lapNumber) =>
+        pool
+          .query(
+            `SELECT lap_time_ms, speed, throttle, brake, steer
+             FROM telemetry_samples
+             WHERE session_id = ? AND lap = ?
+             ORDER BY lap_time_ms ASC`,
+            [sessionId, lapNumber],
+          )
+          .then(([rows]) => rows);
+
+      const [rowsA, rowsB] = await Promise.all([fetchLapRows(lap), fetchLapRows(referenceLap)]);
+      if (rowsA.length < 10 || rowsB.length < 10) {
+        return res.status(400).json({ error: "pas assez d'échantillons pour analyser ces tours" });
+      }
+
+      const cornersA = detectCorners(rowsA);
+      const cornersB = detectCorners(rowsB);
+      const deltas = compareCorners(cornersA, cornersB);
+
+      const comment = await requestCoachComment({
+        sessionName: session.name,
+        lapNumber: lap,
+        lapTimeMs: rowsA[rowsA.length - 1].lap_time_ms,
+        referenceLapNumber: referenceLap,
+        referenceLapTimeMs: rowsB[rowsB.length - 1].lap_time_ms,
+        corners: cornersA,
+        deltas,
+      });
+
+      res.json({ lap, referenceLap, corners: cornersA, deltas, comment });
+    } catch (e) {
+      console.error("Erreur coach IA:", e.message);
+      res.status(502).json({ error: e.message });
+    }
   });
 
   return app;

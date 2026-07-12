@@ -37,3 +37,15 @@ export function fetchTelemetry(sessionId, { laps, metrics } = {}) {
   const qs = params.toString();
   return request(`/api/sessions/${sessionId}/telemetry${qs ? `?${qs}` : ""}`);
 }
+
+export function fetchCoachComment(sessionId, { lap, referenceLap } = {}) {
+  return fetch(`${API_URL}/api/sessions/${sessionId}/coach`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ lap, referenceLap }),
+  }).then(async (res) => {
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error || `Erreur coach IA (${res.status})`);
+    return body;
+  });
+}
