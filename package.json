@@ -9,6 +9,8 @@
     "dev:web": "pnpm --filter web dev",
     "dev:bridge": "pnpm --filter bridge start",
     "build:web": "pnpm --filter web build",
+    "db:up": "docker compose up -d",
+    "db:down": "docker compose down",
     "prepare": "husky"
   },
   "devDependencies": {

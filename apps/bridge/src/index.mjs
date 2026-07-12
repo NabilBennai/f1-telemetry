@@ -17,9 +17,17 @@
 
 import dgram from "node:dgram";
 import { WebSocketServer } from "ws";
+import "dotenv/config";
+import { createApiApp } from "./api.mjs";
+import { createPool } from "./db.mjs";
+import { SessionTracker } from "./sessionTracker.mjs";
 
 const UDP_PORT = 20777;
 const WS_PORT = 8787;
+const API_PORT = Number(process.env.API_PORT) || 8788;
+
+const pool = createPool();
+const sessionTracker = new SessionTracker(pool);
 
 const HEADER_SIZE = 29;
 const CAR_TELEMETRY_SIZE = 60;
@@ -59,6 +67,7 @@ function parseHeader(buf) {
   return {
     packetFormat: buf.readUInt16LE(0),
     packetId: buf.readUInt8(6),
+    sessionUid: buf.readBigUInt64LE(7),
     playerCarIndex: buf.readUInt8(27),
   };
 }
@@ -141,6 +150,7 @@ udpSocket.on("message", (msg) => {
   if (msg.length < HEADER_SIZE) return;
   const header = parseHeader(msg);
   playerIndex = header.playerCarIndex;
+  sessionTracker.onSessionUid(header.sessionUid).catch((e) => console.error(e.message));
 
   try {
     if (header.packetId === 6) parseCarTelemetry(msg);
@@ -152,6 +162,10 @@ udpSocket.on("message", (msg) => {
 
   state.connected = true;
   state.packets += 1;
+
+  if (header.packetId === 6) {
+    sessionTracker.recordSample(state).catch((e) => console.error(e.message));
+  }
 });
 
 udpSocket.on("error", (err) => {
@@ -176,3 +190,8 @@ setInterval(() => {
     if (client.readyState === client.OPEN) client.send(payload);
   });
 }, 66);
+
+const apiApp = createApiApp(pool);
+apiApp.listen(API_PORT, () => {
+  console.log(`API REST (sessions/télémétrie) sur http://localhost:${API_PORT}`);
+});
